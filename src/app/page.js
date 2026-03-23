@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import LiquidFill from '../components/LiquidFill';
 import MetricCard from '../components/MetricCard';
 import SettingsCard from '../components/SettingsCard';
@@ -8,14 +8,22 @@ import { db } from '../firebase';
 import { ref, onValue } from 'firebase/database';
 import { Activity, Clock, Droplets, Ruler } from 'lucide-react';
 
+function formatTime(timeStr) {
+  if (!timeStr || timeStr === 'Never') return 'Never';
+  const parts = timeStr.split(':');
+  if (parts.length >= 2) {
+    const d = new Date();
+    d.setHours(parseInt(parts[0], 10));
+    d.setMinutes(parseInt(parts[1], 10));
+    d.setSeconds(parts[2] ? parseInt(parts[2], 10) : 0);
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+  }
+  return timeStr;
+}
+
 export default function Dashboard() {
   const [data, setData] = useState({
-    status: {
-      water_level_pct: 0,
-      pump_active: false,
-      last_pump_run: 'Never',
-      raw_distance: 0
-    },
+    status: null,
     settings: {
       tank_height: 100,
       low_threshold: 80,
@@ -23,12 +31,32 @@ export default function Dashboard() {
     }
   });
 
+  const [dynamicPumpActive, setDynamicPumpActive] = useState(false);
+  const pumpTimeoutRef = useRef(null);
+  const lastDataRef = useRef('');
+
   useEffect(() => {
     // Listen to /status
     const statusRef = ref(db, 'status');
     const unsubscribeStatus = onValue(statusRef, (snapshot) => {
       if (snapshot.exists()) {
-        setData(prev => ({ ...prev, status: snapshot.val() }));
+        const val = snapshot.val();
+        setData(prev => ({ ...prev, status: val }));
+
+        // Detect if data is actively changing
+        const currentDataString = JSON.stringify({
+          raw_distance: val.raw_distance,
+          water_level_pct: val.water_level_pct
+        });
+        
+        if (lastDataRef.current && lastDataRef.current !== currentDataString) {
+          setDynamicPumpActive(true);
+          if (pumpTimeoutRef.current) clearTimeout(pumpTimeoutRef.current);
+          pumpTimeoutRef.current = setTimeout(() => {
+            setDynamicPumpActive(false);
+          }, 3000); // Assume pump is inactive if no changes for 3s
+        }
+        lastDataRef.current = currentDataString;
       }
     });
 
@@ -43,8 +71,12 @@ export default function Dashboard() {
     return () => {
       unsubscribeStatus();
       unsubscribeSettings();
+      if (pumpTimeoutRef.current) clearTimeout(pumpTimeoutRef.current);
     };
   }, []);
+
+  const isPumpActive = data.status?.pump_active || dynamicPumpActive;
+  const lastPumpRunFormatted = formatTime(data.status?.last_pump_run);
 
   return (
     <main className="dashboard">
@@ -59,7 +91,14 @@ export default function Dashboard() {
           <div className="glass-panel text-center main-gauge-card">
             <h2>Current Water Level</h2>
             <div className="gauge-wrapper">
-              <LiquidFill percentage={data.status.water_level_pct} />
+              {data.status ? (
+                <LiquidFill percentage={data.status.water_level_pct || 0} />
+              ) : (
+                <div className="loading-state">
+                  <div className="spinner"></div>
+                  <p>Waiting for sensor data...</p>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -68,18 +107,18 @@ export default function Dashboard() {
         <section className="col-side flex-col">
           <MetricCard 
             title="Pump Status" 
-            value={data.status.pump_active ? 'ACTIVE' : 'IDLE'} 
-            icon={<Activity size={28} className={data.status.pump_active ? 'pulse-anim' : ''} />} 
-            highlight={data.status.pump_active}
+            value={data.status ? (isPumpActive ? 'ACTIVE' : 'IDLE') : '--'} 
+            icon={<Activity size={28} className={isPumpActive ? 'pulse-anim' : ''} />} 
+            highlight={isPumpActive}
           />
           <MetricCard 
             title="Last Pump Run" 
-            value={data.status.last_pump_run} 
+            value={data.status ? lastPumpRunFormatted : '--'} 
             icon={<Clock size={28} />} 
           />
           <MetricCard 
             title="Raw Distance" 
-            value={parseFloat(data.status.raw_distance).toFixed(1)} 
+            value={data.status && data.status.raw_distance !== undefined ? parseFloat(data.status.raw_distance).toFixed(1) : '--'} 
             unit="cm"
             icon={<Ruler size={28} />} 
           />
@@ -156,14 +195,37 @@ export default function Dashboard() {
           padding: 20px;
         }
 
+        .loading-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 250px;
+          color: var(--text-secondary);
+        }
+        .spinner {
+          width: 40px;
+          height: 40px;
+          border: 4px solid rgba(0, 224, 255, 0.2);
+          border-top-color: #00e0ff;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin-bottom: 15px;
+        }
+
         :global(.pulse-anim) {
           animation: pulse 1.5s infinite;
           color: var(--accent-red);
         }
+
         @keyframes pulse {
           0% { transform: scale(1); opacity: 1; }
           50% { transform: scale(1.1); opacity: 0.8; }
           100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </main>
