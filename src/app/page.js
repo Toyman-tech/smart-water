@@ -179,6 +179,7 @@ export default function Dashboard() {
         
         .main-gauge-card {
           height: 100%;
+          min-height: 350px;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -193,6 +194,11 @@ export default function Dashboard() {
         }
         .gauge-wrapper {
           padding: 20px;
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-grow: 1;
         }
 
         .loading-state {

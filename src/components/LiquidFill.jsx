@@ -19,9 +19,11 @@ export default function LiquidFill({ percentage }) {
     color2 = '#ff4b4b';
   }
 
-  // Calculate top offset for the wave. 0% = bottom, 100% = top
-  // we map 0-100 to a top percentage (e.g., 90% down to 10% down)
-  const waveTop = 100 - Math.min(Math.max(percentage, 0), 100);
+  // Calculate top offset for the wave. 
+  // We want the wave to be slightly visible even at 0%, so we map 0% to a top offset of 80%.
+  // 100% should completely cover the circle, so we map 100% to -20%.
+  const SafePercentage = Math.min(Math.max(percentage || 0, 0), 100);
+  const waveTop = 80 - SafePercentage;
 
   return (
     <div className="liquid-container">
@@ -51,10 +53,14 @@ export default function LiquidFill({ percentage }) {
           justify-content: center;
           align-items: center;
           padding: 20px;
+          min-width: 250px;
+          min-height: 250px;
+          width: 100%;
         }
         .liquid-circle {
           position: relative;
           width: 100%;
+          min-width: 200px;
           max-width: 250px;
           aspect-ratio: 1;
           border-radius: 50%;
