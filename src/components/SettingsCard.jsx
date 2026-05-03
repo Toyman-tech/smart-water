@@ -25,7 +25,7 @@ export default function SettingsCard({ currentSettings }) {
   const handleChange = (e) => {
     setSettings({
       ...settings,
-      [e.target.name]: parseInt(e.target.value) || 0
+      [e.target.name]: e.target.value
     });
   };
 
@@ -34,9 +34,9 @@ export default function SettingsCard({ currentSettings }) {
     try {
       const settingsRef = ref(db, 'settings');
       await update(settingsRef, {
-        tank_height: settings.height,
-        low_threshold: settings.lowThreshold,
-        high_threshold: settings.highThreshold
+        tank_height: parseFloat(settings.height) || 0,
+        low_threshold: parseFloat(settings.lowThreshold) || 0,
+        high_threshold: parseFloat(settings.highThreshold) || 0
       });
       alert('Settings updated via Stream successfully!');
     } catch (error) {
@@ -54,6 +54,7 @@ export default function SettingsCard({ currentSettings }) {
         <label>Tank Height (cm)</label>
         <input 
           type="number" 
+          step="any"
           name="height" 
           value={settings.height} 
           onChange={handleChange} 
@@ -65,6 +66,7 @@ export default function SettingsCard({ currentSettings }) {
         <label>Low Threshold (cm)</label>
         <input 
           type="number" 
+          step="any"
           name="lowThreshold" 
           value={settings.lowThreshold} 
           onChange={handleChange} 
@@ -76,6 +78,7 @@ export default function SettingsCard({ currentSettings }) {
         <label>High Threshold (cm)</label>
         <input 
           type="number" 
+          step="any"
           name="highThreshold" 
           value={settings.highThreshold} 
           onChange={handleChange} 
